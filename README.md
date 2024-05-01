@@ -241,3 +241,12 @@ Tomcat URL: http://public-ip:8080
 ```
 ### Output Tomcat Server
 ![img.png](img.png)
+
+### Upto now we have done the following:
+- git ->github ->jenkins ->maven ->java ->tomcat
+
+### Automate the process using Poll SCM
+```bash
+Build Triggers
+Poll SCM
+```
