@@ -250,3 +250,176 @@ Tomcat URL: http://public-ip:8080
 Build Triggers
 Poll SCM
 ```
+### Now change the ui code of webapp [ index.jsp ] and push in the github and it will automatically build and deploy in the tomcat server
+![img_1.png](img_1.png)
+
+### Upto now we have done the following:
+- git ->github ->jenkins ->maven ->java ->tomcat ->poll scm
+
+### Setup Docker Environment
+```bash
+Name: Docker-Server
+AMI: Amazon Linux 2 AMI
+Security Groups: Add 8080 TCP
+```
+
+### Get access to the EC2 Instance and Install Docker
+```bash
+sudo su -
+yum install docker -y
+systemctl enable docker
+systemctl start docker
+sudo usermod -a -G docker ec2-user
+newgrp docker
+sudo nano /etc/hostname
+sudo init 6
+sudo su -
+```
+
+### Pull Tomcat Image from Docker Hub
+```bash
+docker pull tomcat
+docker images
+docker run -d --name tomcat-container -p 8081:8080 tomcat
+docker ps -a
+```
+
+### Open public ip:8081 in browser and check Tomcat Server
+```bash
+set Inbount Rules in Security Groups
+Inbount Rules: Add 8081 - 9000 TCP
+
+HTTP Status 404 – Not Found
+```
+
+### Fix Tomcat Server Error
+```bash
+docker exec -it tomcat-container /bin/bash
+cd webapps.dist
+cp -R * ../webapps/
+exit
+docker stop tomcat-container
+docker run -d --name tomcat2 -p 8082:8080 tomcat:latest
+# Again raised the same error
+#Dockerfile
+FROM tomcat:latest
+RUN cp -R /usr/local/tomcat/webapps.dist/* /usr/local/tomcat/webapps
+
+docker build -t demotomcat .
+docker run -d --name demotomcat-container -p 8085:8080 demotomcat
+```
+### Now Issue Fixed And Access the Tomcat Server
+```bash
+http://public-ip:8085
+```
+
+### Upto now we have done the following:
+- git ->github ->jenkins ->maven ->java ->tomcat ->poll scm ->docker
+### Create a new docker User
+```bash
+sudo useradd dockeradmin
+sudo passwd dockeradmin
+1234567
+sudo usermod -a -G docker dockeradmin
+```
+
+### Activate password authentication in sshd_config and login to dockeradmin
+```bash
+sudo nano /etc/ssh/sshd_config
+PasswordAuthentication yes
+#PasswordAuthentication no
+sudo service sshd reload
+su -u dockeradmin
+1234567
+```
+
+### Integrate Docker Host With Jenkins and install publish over ssh and Configure Docker Host
+```bash
+Publish Over SSH
+Configure Docker Host
+Name: Docker-Server
+Hostname: Public IP
+Username: dockeradmin
+Password: 1234567
+
+Test Configuration
+Apply and Save
+```
+
+### Jenkins Job to build and copy artifacts to Docker Host
+```bash
+Item Name: BuildAndDeployContainer
+CopyFrom: BuildAndDeployJob
+Description: This is a Build and Deploy Container Job
+Post Build Actions: Send build artifacts over SSH
+Source files: webapp/target/*.war
+Remove Prefix: webapp/target
+Home directory: /home/dockeradmin
+
+# Check the war file in Docker Host
+su - dockeradmin
+cd /home/dockeradmin
+
+Remove the existing war file and remote directory and run the job again
+
+# Check the war file in Docker Host
+cd ~
+ll
+exit
+```
+
+### make docker directory and copy the war file to docker directory
+```bash
+cd /opt
+sudo chown -R dockeradmin:dockeradmin docker
+cd ~
+cd /root
+mv Dockerfile /opt/docker
+sudo chown -R dockeradmin:dockeradmin /opt/docker
+
+# now configure the directory
+remote directory: //opt//docker
+# now check the war file in docker host
+cd /opt/docker
+ls
+```
+
+
+### Change the Dockerfile so that we access it
+```bash
+sudo nano Dockerfile
+
+FROM tomcat:latest
+RUN cp -R /usr/local/tomcat/webapps.dist/* /usr/local/tomcat/webapps
+COPY ./*.war /usr/local/tomcat/webapps
+
+# now build the image
+docker build -t tomcat:v1 .
+
+# now run the container
+docker run -d --name tomcatv1 -p 8086:8080 tomcat:v1 
+# Access the tomcat server
+http://34.222.0.222:8086/webapp/
+
+```
+### Now we can see the webapp in the tomcat server from docker
+![img_2.png](img_2.png)
+
+### Automate build and deployment on docker container
+```bash
+Post-build Actions: Send build artifacts over SSH
+Exec command: 
+cd /opt/docker,
+docker build -t regapp:v1 .;
+docker run -d --name registerapp -p 8087:8080 regapp:v1
+
+# stop and delete all container
+docker stop $(docker ps -a -q)
+docker rm $(docker ps -a -q)
+docker image prune
+docker image prune -a
+
+# Build now and check the webapp in the docker container
+http://34.222.0.222:8087/webapp/
+```
+

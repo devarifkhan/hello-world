@@ -1,5 +1,5 @@
 <form action="action_page.php" style="width: 50%; margin: auto;">
-    <div class="container" style="background-color: #f2f2f2; padding: 20px;">
+    <div class="container" style="background-color: #f2f2f2; padding: 20px; border-radius: 5px;">
         <h1 style="text-align: center;">User Register</h1>
         <p>Please fill in this form to create an account.</p>
         <hr>
