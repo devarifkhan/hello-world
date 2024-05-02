@@ -584,5 +584,5 @@ ansible-playbook regapp.yml --check
 
 # now go to jenkins
 
-command: ansible-playbook regapp.yml --check
+command: ansible-playbook /opt/docker/regapp.yml
 ```
