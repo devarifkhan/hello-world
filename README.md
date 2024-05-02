@@ -586,3 +586,51 @@ ansible-playbook regapp.yml --check
 
 command: ansible-playbook /opt/docker/regapp.yml
 ```
+
+### Create container using ansible playbook
+```bash
+sudo nano deploy-regapp.yml
+
+- hosts: dockerhost
+  tasks:
+  - name: create container 
+    command: docker run -d --name regapp-server -p 8082:8080 devarifkhan/regapp:v1
+
+# delete all docker images on docker host
+docker stop $(docker ps -a -q)
+docker rm $(docker ps -a -q)
+docker image prune
+chmod 777 /var/run/docker.sock
+
+# run the playbook
+ansible-playbook deploy_regapp.yml
+
+# now check the webapp in the browser public ip of dockerhost and port 8082
+http://public-ip:8082/webapp/
+```
+
+### Fix the issue of the container already running
+```bash
+sudo nano deploy-regapp.yml
+- hosts: dockerhost
+  tasks:
+  - name: stop existing container
+    command: docker stop regapp-server
+    ignore_errors: yes
+  - name: remove the container
+    command: docker rm regapp-server
+    ignore_errors: yes
+  - name: remove image
+    command: docker rmi devarifkhan/regapp:v1
+    ignore_errors: yes
+  - name: create container
+    command: docker run -d --name regapp-server -p 8082:8080 devarifkhan/regapp:v1
+```
+
+### Using Ansible to create containers using jenkins
+```bash
+Exec command: 
+ansible-playbook /opt/docker/regapp.yml;
+sleep 10;
+ansible-playbook /opt/docker/deploy-regapp.yml
+```
