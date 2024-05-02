@@ -423,3 +423,166 @@ docker image prune -a
 http://34.222.0.222:8087/webapp/
 ```
 
+### Now if we made any change to the code and deploy it will automatically failed because the container is already running
+### Let's fix this issue [ Change the exec command ]
+```bash
+cd /opt/docker ;
+docker build -t regapp:v1 .;
+docker stop  registerapp;
+docker rm registerapp;
+docker run -d --name registerapp -p 8087:8080 regapp:v1
+
+
+# Build and run
+```
+
+### So far we have done the following:
+- git ->github ->jenkins ->maven ->java ->tomcat ->poll scm ->docker ->publish over ssh
+
+### Create a new EC2 Instance and Install Ansible
+```bash
+Name: Ansible-Server
+AMI: Amazon Linux 2 AMI
+Security Groups: Add 22 TCP
+```
+
+### Add User to the Ansible Server
+```bash 
+sudo useradd ansadmin
+sudo passwd ansadmin
+1234567
+
+sudo visudo
+ansadmin ALL=(ALL)       NOPASSWD: ALL
+
+sudo nano /etc/ssh/sshd_config
+PasswordAuthentication yes
+#PasswordAuthentication no
+
+# now login with ansadmin
+sudo su - ansadmin
+ssh-keygen
+sudo su -
+sudo amazon-linux-extras install ansible2 -y
+python --version
+ansible --version
+```
+
+### Integrate Docker Host with Ansible
+```bash
+sudo su -
+sudo useradd ansadmin
+sudo passwd ansadmin
+1234567
+sudo visudo
+ansadmin ALL=(ALL)       NOPASSWD: ALL
+```
+
+### configure the docker host in the ansible server
+```bash
+sudo nano /etc/ansible/hosts [ add private ip of docker host and remove everything ]
+cd .ssh
+ssh-copy-id private-ip
+ansible all -m ping
+```
+
+
+### Integrate Ansible with Jenkins
+```bash
+Manage Jenkins
+Name: Ansible-Server
+Hostname: Private IP
+Username: ansadmin
+Password: 1234567
+Test Configuration
+Apply and Save
+```
+
+### Create a new Jenkins Job
+```bash
+Item Name: BuildAndDeployContainerUsingAnsible 
+CopyFrom: BuildAndDeployContainer
+Description: This is a Build and Deploy Container Using Ansible Job
+Disable: Poll SCM
+
+#Create /opt/docker directory in Ansible Server
+sudo chown ansadmin:ansadmin  docker
+
+#Save and Build Now
+ll
+```
+
+### Build an image and create container on Ansible Server
+```bash
+sudo yum install docker
+sudo usermod -aG docker ansadmin
+newgrp docker
+sudo service docker start
+cd /opt/docker
+sudo nano Dockerfile
+
+FROM tomcat:latest
+RUN cp -R /usr/local/tomcat/webapps.dist/* /usr/local/tomcat/webapps
+COPY ./*.war /usr/local/tomcat/webapps
+
+sudo chmod 777 /var/run/docker.sock 
+sudo docker build  -t regapp:v1 .
+sudo docker run -t --name regapp-server -p 8081:8080 regapp:v1
+```
+
+### Ansible Playbook to create image and container
+```bash
+sudo nano /etc/ansible/hosts
+172.31.29.98
+ansible all -a uptime
+ssh-copy-id 34.210.213.100
+1234567
+
+
+sudo nano regapp.yml 
+- hosts: ansible
+  tasks:
+   - name: create docker image
+     command: docker build -t regapp:latest .
+     args:
+      chdir: /opt/docker
+
+
+ansible-playbook regapp.yml --check
+```
+
+### Copy image on to dockerHub
+
+```bash
+docker login
+username:
+password:
+docker tag 2f698116327b devarifkhan/regapp:v1
+docker push devarifkhan/regapp:v1
+```
+
+### Jenkins job to build an image onto ansible
+```bash
+sudo nano regapp.yml
+
+    - hosts: ansible
+    
+      tasks:
+       - name: create docker image
+         command: docker build -t regapp:latest .
+         args:
+          chdir: /opt/docker
+    
+       - name: create tag to push image into dockerhub
+         command: docker tag regapp:v1 devarifkhan/regapp:v1
+    
+       - name: push docker image
+         command: docker push devarifkhan/regapp:v1
+     
+ansible-playbook regapp.yml --check
+
+
+# now go to jenkins
+
+command: ansible-playbook regapp.yml --check
+```
