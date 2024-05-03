@@ -959,4 +959,3 @@ kubectl delete deployment.apps/devarifkhan-regapp
 kubectl delete service/devarifkhan-service
 eksctl delete cluster --name devarifkhan --region us-west-2
 ```
-![DevOPS Project.png](..%2F..%2FDownloads%2FDevOPS%20Project.png)
