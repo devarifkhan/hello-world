@@ -1,4 +1,6 @@
-## DevOps Project
+# **End-to-End DevOps Project: From Source Code to Deployment Using Jenkins, Maven, Docker, Ansible, and Kubernetes**
+
+![DevOPS Project.png](hero.png)
 
 ### Create Ec2 Instance
 
@@ -632,5 +634,329 @@ sudo nano deploy-regapp.yml
 Exec command: 
 ansible-playbook /opt/docker/regapp.yml;
 sleep 10;
-ansible-playbook /opt/docker/deploy-regapp.yml
+ansible-playbook /opt/docker/deploy_regapp.yml
 ```
+
+### So far we have done the following:
+- git ->github ->jenkins ->maven ->java ->tomcat ->poll scm ->docker ->publish over ssh ->ansible
+
+### Install Kubernetes Using Eks Ctl
+
+### Create a new EC2 Instance 
+```bash
+Name: EKS-Server
+AMI: Amazon Linux 2 AMI
+Security Groups: Add 22 TCP
+```
+
+### Access the EC2 Server and Install AWS EKS CTL
+```bash
+aws --version
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
+curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.29.3/2024-04-19/bin/linux/amd64/kubectl
+chmod +x ./kubectl
+
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+cd /tmp
+sudo mv eksctl /usr/local/bin
+eksctl version
+
+# update ec2 iam role [ ec2, cloudformation, iam,administrative access ]
+```
+
+### Create cluster using eksctl
+```bash
+ eksctl create cluster --name devarifkhan --region us-west-2 --node-type t2.small 
+ cat /root/.kube/config
+ kubectl get nodes
+ kubectl get all
+ kubectl run webapp --image=httpd
+  kubectl get pods
+ ```
+
+### Run Kubernetes Basic Commands
+```bash
+kubectl create deployment demo-nginx --image=nginx --port=80 --replicas=2
+kubectl get deployment
+kubectl get replicaset
+kubectl get all
+kubectl get pods
+kubectl expose deployment demo-nginx --port=80 --type=LoadBalancer
+kubectl get all
+kubectl delete deployment demo-nginx
+kubectl delete service/demo-nginx
+# Access the nginx
+http://ae154a84e3c3d4e4986056361b489d0d-1170342381.us-west-2.elb.amazonaws.com/
+```
+
+### Create manifest file
+```bash
+sudo nano pod.yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-pod
+  labels:
+   app: demo-app
+
+spec:
+  containers:
+    - name: demo-nginx
+      image: nginx
+      ports:
+        - name: demo-nginx
+          containerPort: 80
+          
+          
+sudo nano service.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-service
+
+spec:
+  ports:
+  - name: nginx-port
+    port: 80
+    targetPort: 80
+  selector: demo-app
+  type: LoadBalancer
+  
+
+kubectl apply -f pod.yml
+kubectl get all
+kubectl apply -f service.yml
+kubectl get all
+
+kubectl describe service/demo-service
+```
+
+### Deployment and Service using manifest file to create and access pod
+```bash
+kubectl delete pod demo-pod
+kubectl delete service/demo-service
+kubectl get all
+
+sudo nano regapp-deployment.yml
+
+
+apiVersion: apps/v1 
+kind: Deployment
+metadata:
+  name: devarifkhan-regapp
+  labels: 
+     app: regapp
+
+spec:
+  replicas: 3 
+  selector:
+    matchLabels:
+      app: regapp
+
+  template:
+    metadata:
+      labels:
+        app: regapp
+    spec:
+      containers:
+      - name: regapp
+        image: devarifkhan/regapp
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+      
+      
+      
+kubectl apply -f regapp-deployment.yml 
+sudo nano regapp-service.yml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: devarifkhan-service
+  labels:
+    app: regapp 
+spec:
+  selector:
+    app: regapp 
+
+  ports:
+    - port: 8080
+      targetPort: 8080
+
+  type: LoadBalancer
+
+
+
+kubectl apply -f regapp-service.yml 
+
+# now check on web url
+http://a2c74de74a5434d03b7cab74e95e0239-1691499314.us-west-2.elb.amazonaws.com:8080/webapp/
+
+kubectl get pod
+kubectl delete pod devarifkhan-regapp-65b94c56f-5bc9n
+useradd ansadmin
+passwd ansadmin
+1234567
+sudo visudo
+ansadmin ALL=(ALL)       NOPASSWD: ALL
+vi /etc/ssh/sshd_config
+PasswordAuthentication yes
+#PasswordAuthentication no
+
+
+service sshd reload
+
+```
+
+### Integrate kubernetes bootstrap server with ansible
+```bash
+ sudo su - ansadmin
+ cd /opt/docker
+ mv regapp.yml create_image_regapp.yml
+ mv deploy_regapp.yml docker_deployment.yml
+ 
+ sudo nano hosts
+ 
+ localhost
+
+[kubernetes]
+172.31.18.120
+
+[ansible]
+172.31.29.98
+
+ssh-copy-id 172.31.18.120
+ansible -i hosts all -a uptime
+
+sudo nano kube_deploy.yml
+
+---
+- hosts: kubernetes
+  become: true
+
+  tasks:
+  - name: deploy regapp on kubernetes
+    command: kubectl apply -f /root/regapp-deployment.yml
+    
+sudo nano kube_service.yml
+
+---
+- hosts: kubernetes
+  become: true
+
+  tasks:
+  - name: deploy regapp on kubernetes
+    command: kubectl apply -f /root/regapp-service.yml
+
+# EKS-BootStrap-Server 
+
+kubectl delete -f regapp-service.yml
+kubectl delete -f regapp-deployment.yml 
+
+# Ansible-Server
+ansible-playbook /opt/docker/create_image_regapp.yml
+sudo nano kube_deploy.yml
+
+---
+- hosts: kubernetes
+# become: true
+  user: root
+
+  tasks:
+  - name: deploy regapp on kubernetes
+    command: kubectl apply -f regapp-deployment.yml
+    
+
+sudo nano kube_service.yml
+
+---
+- hosts: kubernetes
+# become: true
+  user: root
+  tasks:
+  - name: deploy regapp on kubernetes
+    command: kubectl apply -f regapp-service.yml
+
+ansible-playbook -i /opt/docker/hosts kube_deploy.yml
+ansible-playbook -i /opt/docker/hosts kube_service.yml 
+
+# EKS Server
+kubectl get all
+kubectl get pods
+ ```
+
+### Create Jenkins Deployment job for kubernetes:
+```bash
+New Item
+Deploy_On_Kubernetes
+FreeStyleProject
+
+# run this two command on eks server
+kubectl  delete deployment.apps/devarifkhan-regapp
+kubectl delete service/devarifkhan-service
+
+#Build and run
+
+# Check on eks
+kubectl get all
+sudo nano kube_deploy.yml
+
+---
+- hosts: kubernetes
+# become: true
+  user: root
+
+  tasks:
+  - name: deploy regapp on kubernetes
+    command: kubectl apply -f regapp-deployment.yml
+  - name: create service for regapp
+    command: kubectl apply -f regapp-service.yml 
+```
+
+### CI Job to create Image for kubernetes 
+```bash
+Change the Item Name Deploy_On_Kubernetes to RegApp_CD_Job
+RegApp_CI_Job and copy from Copy_Artifacts_Onto_Ansible
+Exec Command: 
+ansible-playbook /opt/docker/create_image_regapp.yml;
+```
+
+### Enable rolling update to create pod from latest docker image
+```bash
+RegApp_CD_Job
+Add Post Build Action: Build Other Projects
+Build other projects: RegApp_CD_Job
+
+sudo nano kube_deploy.yml
+
+---
+- hosts: kubernetes
+# become: true
+  user: root
+
+  tasks:
+  - name: deploy regapp on kubernetes
+    command: kubectl apply -f regapp-deployment.yml
+  - name: create service for regapp
+    command: kubectl apply -f regapp-service.yml
+  - name: update deployment with new pods if image updated in docker hub
+    command: kubectl rollout restart deployment.apps/devarifkhan-regapp    
+
+```
+
+### Clean the Kubernetes Setup:
+```bash
+kubectl delete deployment.apps/devarifkhan-regapp
+kubectl delete service/devarifkhan-service
+eksctl delete cluster --name devarifkhan --region us-west-2
+```
+![DevOPS Project.png](..%2F..%2FDownloads%2FDevOPS%20Project.png)
